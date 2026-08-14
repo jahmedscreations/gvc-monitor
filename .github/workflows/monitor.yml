@@ -7,7 +7,7 @@ on:
   workflow_dispatch:   # lets you run it manually from the Actions tab
 
 permissions:
-  contents: write      # needed to commit last_seen.txt back to the repo
+  contents: write      # needed to commit the state file back to the repo
 
 concurrency:
   group: gvc-monitor
@@ -35,12 +35,18 @@ jobs:
 
       - name: Commit updated state
         run: |
-          if [[ -n "$(git status --porcelain last_seen.txt)" ]]; then
+          # Remove the obsolete state file from the old version, if present.
+          git rm --quiet --ignore-unmatch last_seen.txt || true
+
+          # Stage the current state file (works whether new or modified).
+          git add -A seen_articles.json
+
+          if git diff --cached --quiet; then
+            echo "No state change to commit."
+          else
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add last_seen.txt
-            git commit -m "Update last seen news item"
+            git commit -m "Update seen articles state"
             git push
-          else
-            echo "No state change to commit."
+            echo "State committed."
           fi

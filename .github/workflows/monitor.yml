@@ -1,0 +1,46 @@
+name: GVC Appointment Monitor
+
+on:
+  schedule:
+    # Every 15 minutes. GitHub may delay runs during peak load.
+    - cron: "*/15 * * * *"
+  workflow_dispatch:   # lets you run it manually from the Actions tab
+
+permissions:
+  contents: write      # needed to commit last_seen.txt back to the repo
+
+concurrency:
+  group: gvc-monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: Run monitor
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python monitor.py
+
+      - name: Commit updated state
+        run: |
+          if [[ -n "$(git status --porcelain last_seen.txt)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add last_seen.txt
+            git commit -m "Update last seen news item"
+            git push
+          else
+            echo "No state change to commit."
+          fi
